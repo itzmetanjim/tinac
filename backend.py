@@ -82,6 +82,7 @@ with open("config.json","r") as f:
     config=json.load(f)
     good_fonts=config["good_fonts"]
     chars=config["chars"] #Confusing chars may make the captcha hard so those are removed
+    charlens=config["charlens"]
     deceptor=config.get("deceptor","markov")
     if deceptor=="markov":
         markov_chain=AsciiMarkovChain.load_from_json("model.json")
@@ -145,8 +146,10 @@ POST /verify    : Verify an answer (case sensitive).
 
 @app.get("/challenge")
 def get_challenge():
+    global charlens
+    
     cid=secrets.token_urlsafe(32)
-    challenge="".join(secrets.choice(chars) for _ in range(secrets.choice([5,6,7])))
+    challenge="".join(secrets.choice(chars) for _ in range(secrets.choice(charlens)))
     fonts=[secrets.choice(good_fonts) for _ in range(len(challenge))]
     if len(challenges)>1000:
         challenges.popitem(last=False)
