@@ -27,21 +27,26 @@ class AsciiMarkovChain:
             self.model[current_state].append(next_char)
 
     def generate(self, length=1000):
+        # produce exactly `length` characters in the returned string
+        if length <= 0:
+            return ""
         start_key = random.choice(list(self.model.keys()))
         output = start_key
         current_state = start_key
-        
-        for _ in range(length):
+
+        # keep adding characters until we have at least `length`, then trim
+        while len(output) < length:
             possible_next_chars = self.model.get(current_state)
             if not possible_next_chars:
                 current_state = random.choice(list(self.model.keys()))
+                # reset current_state to a valid key but keep trying to reach desired length
                 continue
-            
+
             next_char = random.choice(possible_next_chars)
             output += next_char
             current_state = output[-self.order:]
-            
-        return output
+
+        return output[:length]
 
     def save_to_json(self, filepath="model.json"):
         data = {
