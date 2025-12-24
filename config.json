@@ -1,0 +1,13 @@
+{
+    "good_fonts": ["standard"],
+    "chars": "ABCEFGHJKMNPRSTLabcdefghijkmnopqrstuvwxyz",
+    "deceptor": "markov",
+
+
+    "__comment__":"Use 'markov','random' or a custom deceptor module name (must have the function generate_decoy(linelen,lineheight,realtext) defined).",
+
+    "training_settings":{
+        "memory":5,
+        "examples":1000
+    }
+}

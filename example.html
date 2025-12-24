@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TINAC Example</title>
+    <style>
+        pre {
+            font-family: "Courier New", Courier, monospace;
+            line-height: 1;
+            font-size: 12px;
+        }
+        
+    </style>
+</head>
+<body>
+    <h1>TINAC Captcha example</h1>
+    <p>API URL:</p>
+    <input type="text" id="api_url" value="tanjim.duckdns.org:3456">
+    <button onclick="fetchCaptcha()">Fetch Captcha</button>
+    <div id="captcha_container">
+        <pre id="captcha_display"></pre>
+        <p>Change the slider until you see legible text. Then enter the text you see in the input box below.</p>
+        <input type="range" id="captcha_slider" min="0" max="49" value="0" oninput="updateSliderValue()">
+        <br><input type="text" id="answer_input" placeholder="Enter captcha text here">
+        <div>Selected Index: <span id="selected_index">0</span>
+    </div>
+    <button onclick="submitCaptcha()">Submit Captcha</button>
+    <div id="result"></div>
+    <script>
+        function fetchCaptcha() {
+            const apiUrl = document.getElementById('api_url').value;
+            fetch(`${apiUrl}/challenge`)
+                .then(response => response.json())
+                .then(data => {
+                    window.captchaId = data.id;
+                    window.captchaChallenges = data.challenge;
+                    updateCaptchaDisplay(0);
+                });
+        }
+        function updateCaptchaDisplay(index) {
+            const captchaDisplay = document.getElementById('captcha_display');
+            captchaDisplay.textContent = window.captchaChallenges[index];
+        }
+        function updateSliderValue() {
+            const slider = document.getElementById('captcha_slider');
+            const selectedIndex = document.getElementById('selected_index');
+            selectedIndex.textContent = slider.value;
+            updateCaptchaDisplay(slider.value);
+        }
+        function submitCaptcha() {
+            const apiUrl = document.getElementById('api_url').value;
+            const answer = document.getElementById('answer_input').value;
+            fetch(`http://${apiUrl}/verify`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    id: window.captchaId,
+                    answer: answer,
+                    index: parseInt(document.getElementById('captcha_slider').value)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('result');
+                resultDiv.textContent = `Answer is  ${data.answer == true ? "correct" : "incorrect"}\nIndex is ${data.index_correct == true ? "correct" : "incorrect"}`;
+            });
+        }
+    </script>
+</body>
+</html>
