@@ -16,7 +16,7 @@
 <body>
     <h1>TINAC Captcha example</h1>
     <p>API URL:</p>
-    <input type="text" id="api_url" value="tanjim.duckdns.org:3456">
+    <input type="text" id="api_url" value="http://tanjim.duckdns.org:3456">
     <button onclick="fetchCaptcha()">Fetch Captcha</button>
     <div id="captcha_container">
         <pre id="captcha_display"></pre>
@@ -51,7 +51,7 @@
         function submitCaptcha() {
             const apiUrl = document.getElementById('api_url').value;
             const answer = document.getElementById('answer_input').value;
-            fetch(`http://${apiUrl}/verify`, {
+            fetch(`${apiUrl}/verify`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
