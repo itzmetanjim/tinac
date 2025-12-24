@@ -1,5 +1,10 @@
+#!/usr/bin/env python3
 from collections import defaultdict
+import io
+import zlib
+import base64
 import json
+from PIL import Image, ImageDraw, ImageFont
 import pyfiglet
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
@@ -13,7 +18,63 @@ origins = [
     "*",
 ]
 
+class CaptchaCompressor:
+    def __init__(self, font_path="Inconsolata.ttf", font_size=20):
+        try:
+            self.font = ImageFont.truetype(font_path, font_size)
+        except:
+            print("Warning: Font not found, loading default.")
+            self.font = ImageFont.load_default()
 
+    def encode_bundle(self, text_frames):
+        """
+        Takes a list of ASCII strings.
+        Returns a JSON object with metadata and ONE compressed binary blob.
+        """
+        if not text_frames: return None
+
+        dummy_img = Image.new('1', (1, 1))
+        d = ImageDraw.Draw(dummy_img)
+        bbox = d.textbbox((0, 0), text_frames[0], font=self.font)
+        width, height = bbox[2], bbox[3]
+        
+        width += 10
+        height += 10
+        all_frames_bits = bytearray()
+
+        print(f"Encoding {len(text_frames)} frames...")
+
+        for text in text_frames:
+            img = Image.new('1', (width, height), color=1) # 1 is white
+            draw = ImageDraw.Draw(img)
+            draw.text((5, 5), text, font=self.font, fill=0) # 0 is black
+            pixels = list(img.getdata())
+            frame_bytes = bytearray()
+            current_byte = 0
+            bit_idx = 0
+            
+            for p in pixels:
+                if p == 0: 
+                    current_byte |= (1 << (7 - bit_idx))
+                bit_idx += 1
+                if bit_idx == 8:
+                    frame_bytes.append(current_byte)
+                    current_byte = 0
+                    bit_idx = 0
+            if bit_idx > 0:
+                frame_bytes.append(current_byte)
+                
+            all_frames_bits.extend(frame_bytes)
+        compressed_data = zlib.compress(all_frames_bits, level=9)
+        b64_string = base64.b64encode(compressed_data).decode('utf-8')
+
+        return {
+            "width": width,
+            "height": height,
+            "count": len(text_frames),
+            "data": b64_string
+        }
+imager = CaptchaCompressor()
 class AsciiMarkovChain:
     def __init__(self, corpus=None, order=5):
         self.order = order
@@ -139,6 +200,14 @@ GET /challenge  : Get a random challenge.
         {"id":"unique-id-urlsafe-base64",
         "challenge":["random_challenge1","2", ... ,"50"],
         "steps":50}
+GET /challenge_img: Get an image challenge.The image is a compressed bundle of all frames. See source code for format.
+    Request body: none needed
+    Example response:
+        {"id":"unique-id-urlsafe-base64",
+        "challenge":{"width":W,"height":H,"count":N,"data":"base64-encoded-compressed-binary-blob"},
+        "steps":50}
+    Use the same /verify endpoint to verify the answer.
+    To decode the image, see the example.html implementation in github.com/itzmetanjim/tinac
 POST /verify    : Verify an answer (case sensitive).
     Example request body: {"id":"unique-id-urlsafe-base64","answer":"abcd"} or {"id":"unique-id-urlsafe-base64","answer":"abcd", "index": 2}
     Example response: {"answer": true} 
@@ -183,6 +252,48 @@ def get_challenge():
             challenges_list.append(decoy_text)
     
     return {"id":cid,"challenge":challenges_list,"steps":steps}
+
+
+
+@app.get("/challenge_img")
+def get_challenge_img():
+    global charlens
+    global imager #CaptchaCompressor instance
+
+    cid=secrets.token_urlsafe(32)
+    challenge="".join(secrets.choice(chars) for _ in range(secrets.choice(charlens)))
+    fonts=[secrets.choice(good_fonts) for _ in range(len(challenge))]
+    if len(challenges)>100000000: # approx 4GB ram usage limit
+        challenges.popitem(last=False)
+    ctext = asciiart(list(zip(challenge, fonts)))
+    correct_index=secrets.randbelow(steps+1)
+    challenges[cid]=[challenge,correct_index]
+    #generate decoys
+    challenges_list=[]
+    for i in range(steps):
+        if i==correct_index:
+            challenges_list.append(ctext)
+        else:
+            emptylinesbefore=0
+            emptylinesafter=0
+            for line in ctext.split("\n"):
+                if line.strip()=="":
+                    emptylinesbefore+=1
+                else:
+                    break
+            for line in reversed(ctext.split("\n")):
+                if line.strip()=="":
+                    emptylinesafter+=1
+                else:
+                    break
+            linelen = max(len(line) for line in ctext.split("\n"))
+            lineheight = len(ctext.split("\n")) - emptylinesbefore - emptylinesafter
+            
+            decoy_text=(" "*linelen + "\n")* emptylinesbefore + generate_decoy(linelen,lineheight,challenge) + ("\n" + " "*linelen)* emptylinesafter
+            challenges_list.append(decoy_text)
+    #now convert to image
+    imgdata = imager.encode_bundle(challenges_list)
+    return {"id":cid,"challenge":imgdata,"steps":steps}
 
 @app.post("/verify")
 def verify_answer(payload: dict):

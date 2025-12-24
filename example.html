@@ -50,13 +50,14 @@
     <h1>TINAC Captcha example</h1>
     <p>API URL:</p>
     <input type="text" id="api_url" value="http://tanjim.duckdns.org:3456"><button onclick="fetchCaptcha()">Fetch Captcha</button>
+    <br><button onclick="fetchCaptchaImg()">Fetch Image Captcha</button>
     <p>Note: It may take some time to fetch. Wait until you see the captcha below.</p>
+    <canvas id="captcha_canvas" style="display:none; border:1px solid #555;"></canvas>
     <div id="captcha_container">
         <pre id="captcha_display">Click "Fetch Captcha" to start</pre>
         <p>Slowly drag the slider until you see legible text. Then enter the text you see in the input box below.</p>
         <input type="range" id="captcha_slider" min="0" max="49" value="0" oninput="updateSliderValue()"> <span id="selected_index">0</span>
         <br><input type="text" id="answer_input" placeholder="Enter captcha text here"><button onclick="submitCaptcha()">Submit Captcha</button>
-         
     </div>
     
     <div id="result"></div>
@@ -77,6 +78,204 @@
                     captchaDisplay.textContent = "Error fetching captcha: " + error;
                 });
         }
+        // GLOBAL STORAGE for the decompressed raw bits
+window.captchaRawBits = null; 
+
+async function initCaptchaData() {
+    if (!window.challenges || !window.challenges.data) {
+        console.error("No captcha data found in window.challenges");
+        return;
+    }
+
+    try {
+        // 1. Convert Base64 string to Uint8Array
+        const binaryString = atob(window.challenges.data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // 2. Decompress using native browser API
+        // 'deflate' format handles the zlib headers Python generates
+        const stream = new Blob([bytes]).stream().pipeThrough(
+            new DecompressionStream("deflate")
+        );
+        
+        // 3. Load result into memory buffer
+        const response = new Response(stream);
+        const buffer = await response.arrayBuffer();
+        window.captchaRawBits = new Uint8Array(buffer);
+        
+        console.log(`Captcha loaded: ${window.captchaRawBits.length} bytes unpacked.`);
+        
+        // Optional: Draw the first frame immediately
+        display_to_canvas(0);
+
+    } catch (err) {
+        console.error("Decompression failed:", err);
+    }
+}
+
+function display_to_canvas(index) {
+    const rawData = window.captchaRawBits;
+    const meta = window.challenges;
+    const canvas = window.canvasElem;
+
+    // Safety checks
+    if (!rawData || !canvas || !meta) return;
+    if (index < 0 || index >= meta.count) return;
+
+    // 1. Resize Canvas if needed (only triggers if dimensions change)
+    if (canvas.width !== meta.width || canvas.height !== meta.height) {
+        canvas.width = meta.width;
+        canvas.height = meta.height;
+    }
+
+    const ctx = canvas.getContext("2d");
+    
+    // 2. Create standard RGBA Image Data buffer
+    const imgData = ctx.createImageData(meta.width, meta.height);
+    const pixels = imgData.data; // The flat array [R,G,B,A, R,G,B,A...]
+
+    // 3. Calculate Offsets
+    // How many bytes does one frame take? (Math.ceil(pixels / 8))
+    const totalPixels = meta.width * meta.height;
+    const bytesPerFrame = Math.ceil(totalPixels / 8);
+    const startByte = index * bytesPerFrame;
+
+    // 4. Bit Unpacking Loop
+    // We iterate through every pixel of the target frame
+    for (let i = 0; i < totalPixels; i++) {
+        // Find which byte this pixel lives in relative to the frame start
+        const byteIndex = startByte + (i >> 3); // i / 8
+        const bitPos = 7 - (i % 8); // MSB first (7 down to 0)
+
+        // Extract the bit (0 or 1)
+        // Guard against buffer overflow if padding calculation is slightly off
+        const byteVal = (byteIndex < rawData.length) ? rawData[byteIndex] : 0;
+        const isInk = (byteVal >> bitPos) & 1;
+
+        // Map to RGBA
+        const pIndex = i * 4;
+        
+        if (isInk === 1) {
+            // BLACK (Ink)
+            pixels[pIndex] = 0;     // R
+            pixels[pIndex + 1] = 0; // G
+            pixels[pIndex + 2] = 0; // B
+            pixels[pIndex + 3] = 255; // Alpha
+        } else {
+            // WHITE (Background) - Change this to 0 if you want transparent
+            pixels[pIndex] = 255;
+            pixels[pIndex + 1] = 255;
+            pixels[pIndex + 2] = 255;
+            pixels[pIndex + 3] = 255;
+        }
+    }
+
+    // 5. Blast bits to screen
+    ctx.putImageData(imgData, 0, 0);
+}
+window.canvasElem=document.getElementById("captcha_canvas");
+// GLOBAL STORAGE for the decompressed raw bits
+window.captchaRawBits = null; 
+
+async function initCaptchaData() {
+    if (!window.challenges || !window.challenges.data) {
+        console.error("No captcha data found in window.challenges");
+        return;
+    }
+
+    try {
+        const binaryString = atob(window.challenges.data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const stream = new Blob([bytes]).stream().pipeThrough(
+            new DecompressionStream("deflate")
+        );
+        
+        const response = new Response(stream);
+        const buffer = await response.arrayBuffer();
+        window.captchaRawBits = new Uint8Array(buffer);
+        
+        console.log(`Captcha loaded: ${window.captchaRawBits.length} bytes unpacked.`);
+        display_to_canvas(0);
+
+    } catch (err) {
+        console.error("Decompression failed:", err);
+    }
+}
+
+function display_to_canvas(index) {
+    const rawData = window.captchaRawBits;
+    const meta = window.challenges;
+    const canvas = window.canvasElem;
+
+    if (!rawData || !canvas || !meta) return;
+    if (index < 0 || index >= meta.count) return;
+
+    if (canvas.width !== meta.width || canvas.height !== meta.height) {
+        canvas.width = meta.width;
+        canvas.height = meta.height;
+    }
+
+    const ctx = canvas.getContext("2d");
+    
+    const imgData = ctx.createImageData(meta.width, meta.height);
+    const pixels = imgData.data; // The flat array [R,G,B,A, R,G,B,A...]
+
+    const totalPixels = meta.width * meta.height;
+    const bytesPerFrame = Math.ceil(totalPixels / 8);
+    const startByte = index * bytesPerFrame;
+
+    for (let i = 0; i < totalPixels; i++) {
+        const byteIndex = startByte + (i >> 3); // i / 8
+        const bitPos = 7 - (i % 8); // MSB first (7 down to 0)
+
+        const byteVal = (byteIndex < rawData.length) ? rawData[byteIndex] : 0;
+        const isInk = (byteVal >> bitPos) & 1;
+
+        // Map to RGBA
+        const pIndex = i * 4;
+        
+        if (isInk === 1) {
+            // BLACK (Ink)
+            pixels[pIndex] = 0;     // R
+            pixels[pIndex + 1] = 0; // G
+            pixels[pIndex + 2] = 0; // B
+            pixels[pIndex + 3] = 255; // Alpha
+        } else {
+            pixels[pIndex] = 255;
+            pixels[pIndex + 1] = 255;
+            pixels[pIndex + 2] = 255;
+            pixels[pIndex + 3] = 255;
+        }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+}
+    function fetchCaptchaImg() {
+            const apiUrl = document.getElementById('api_url').value;
+            const captchaDisplay = document.getElementById('captcha_display');
+            const canvas = document.getElementById('captcha_canvas');
+            canvas.style.display = "block";
+            captchaDisplay.style.display = "none";
+            captchaDisplay.textContent = "Fetching image captcha, please wait...";
+            fetch(`${apiUrl}/challenge_img`)
+                .then(response => response.json())
+                .then(data => {
+                    window.captchaId = data.id;
+                    window.challenges = data.challenge;
+                    document.getElementById('captcha_slider').max = data.steps - 1;
+                    initCaptchaData();
+                })
+                .catch(error => {
+                    captchaDisplay.textContent = "Error fetching captcha: " + error;
+                });
+        }
         function updateCaptchaDisplay(index) {
             const captchaDisplay = document.getElementById('captcha_display');
             captchaDisplay.textContent = window.captchaChallenges[index];
@@ -85,7 +284,11 @@
             const slider = document.getElementById('captcha_slider');
             const selectedIndex = document.getElementById('selected_index');
             selectedIndex.textContent = slider.value;
-            updateCaptchaDisplay(slider.value);
+            if(window.captchaRawBits==null){
+                updateCaptchaDisplay(slider.value);// Text captcha
+            }else{
+                display_to_canvas(parseInt(slider.value));// Image captcha
+            }
         }
         function submitCaptcha() {
             const apiUrl = document.getElementById('api_url').value;
