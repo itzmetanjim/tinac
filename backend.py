@@ -182,7 +182,7 @@ def get_challenge():
             decoy_text=(" "*linelen + "\n")* emptylinesbefore + generate_decoy(linelen,lineheight,challenge) + ("\n" + " "*linelen)* emptylinesafter
             challenges_list.append(decoy_text)
     
-    return {"id":cid,"challenge":challenges_list}
+    return {"id":cid,"challenge":challenges_list,"steps":steps}
 
 @app.post("/verify")
 def verify_answer(payload: dict):
