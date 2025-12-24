@@ -49,8 +49,8 @@
 <body>
     <h1>TINAC Captcha example</h1>
     <p>API URL:</p>
-    <input type="text" id="api_url" value="http://tanjim.duckdns.org:3456"><button onclick="fetchCaptcha()">Fetch Captcha</button>
-    <br><button onclick="fetchCaptchaImg()">Fetch Image Captcha</button>
+    <input type="text" id="api_url" value="http://tanjim.duckdns.org:3456"><button onclick="fetchCaptchaImg()">Fetch Captcha</button>
+    <br><button onclick="fetchCaptcha()">Fetch Legacy Text Captcha</button>
     <p>Note: It may take some time to fetch. Wait until you see the captcha below.</p>
     <canvas id="captcha_canvas" style="display:none; border:1px solid #555;"></canvas>
     <div id="captcha_container">
@@ -62,6 +62,18 @@
     
     <div id="result"></div>
     <script>
+        function hexToRgb(hex) {
+    // Remove '#' if present
+    hex = hex.replace(/^#/, '');
+    
+    // Parse the values
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+
+    return { r, g, b };
+        }       
         function fetchCaptcha() {
             const apiUrl = document.getElementById('api_url').value;
             const captchaDisplay = document.getElementById('captcha_display');
@@ -116,64 +128,59 @@ async function initCaptchaData() {
     }
 }
 
-function display_to_canvas(index) {
+function display_to_canvas(index, fgHex = "#d4d4d4", bgHex = "transparent" /*bgHex can be "transparent" or a hexcode*/) {
     const rawData = window.captchaRawBits;
     const meta = window.challenges;
     const canvas = window.canvasElem;
 
-    // Safety checks
     if (!rawData || !canvas || !meta) return;
     if (index < 0 || index >= meta.count) return;
 
-    // 1. Resize Canvas if needed (only triggers if dimensions change)
     if (canvas.width !== meta.width || canvas.height !== meta.height) {
         canvas.width = meta.width;
         canvas.height = meta.height;
     }
 
     const ctx = canvas.getContext("2d");
-    
-    // 2. Create standard RGBA Image Data buffer
     const imgData = ctx.createImageData(meta.width, meta.height);
-    const pixels = imgData.data; // The flat array [R,G,B,A, R,G,B,A...]
+    const pixels = imgData.data;
 
-    // 3. Calculate Offsets
-    // How many bytes does one frame take? (Math.ceil(pixels / 8))
+    const fg = hexToRgb(fgHex);
+    let bg = { r: 0, g: 0, b: 0 }; 
+    let bgAlpha = 255; 
+
+    if (bgHex === "transparent") {
+        bgAlpha = 0; 
+    } else {
+        bg = hexToRgb(bgHex);
+    }
+
     const totalPixels = meta.width * meta.height;
     const bytesPerFrame = Math.ceil(totalPixels / 8);
     const startByte = index * bytesPerFrame;
 
-    // 4. Bit Unpacking Loop
-    // We iterate through every pixel of the target frame
     for (let i = 0; i < totalPixels; i++) {
-        // Find which byte this pixel lives in relative to the frame start
-        const byteIndex = startByte + (i >> 3); // i / 8
-        const bitPos = 7 - (i % 8); // MSB first (7 down to 0)
+        const byteIndex = startByte + (i >> 3); 
+        const bitPos = 7 - (i % 8); 
 
-        // Extract the bit (0 or 1)
-        // Guard against buffer overflow if padding calculation is slightly off
         const byteVal = (byteIndex < rawData.length) ? rawData[byteIndex] : 0;
         const isInk = (byteVal >> bitPos) & 1;
 
-        // Map to RGBA
-        const pIndex = i * 4;
+        const p = i * 4;
         
         if (isInk === 1) {
-            // BLACK (Ink)
-            pixels[pIndex] = 0;     // R
-            pixels[pIndex + 1] = 0; // G
-            pixels[pIndex + 2] = 0; // B
-            pixels[pIndex + 3] = 255; // Alpha
+            pixels[p]     = fg.r;
+            pixels[p + 1] = fg.g;
+            pixels[p + 2] = fg.b;
+            pixels[p + 3] = 255; 
         } else {
-            // WHITE (Background) - Change this to 0 if you want transparent
-            pixels[pIndex] = 255;
-            pixels[pIndex + 1] = 255;
-            pixels[pIndex + 2] = 255;
-            pixels[pIndex + 3] = 255;
+            pixels[p]     = bg.r;
+            pixels[p + 1] = bg.g;
+            pixels[p + 2] = bg.b;
+            pixels[p + 3] = bgAlpha; 
         }
     }
 
-    // 5. Blast bits to screen
     ctx.putImageData(imgData, 0, 0);
 }
 window.canvasElem=document.getElementById("captcha_canvas");
@@ -209,54 +216,6 @@ async function initCaptchaData() {
     }
 }
 
-function display_to_canvas(index) {
-    const rawData = window.captchaRawBits;
-    const meta = window.challenges;
-    const canvas = window.canvasElem;
-
-    if (!rawData || !canvas || !meta) return;
-    if (index < 0 || index >= meta.count) return;
-
-    if (canvas.width !== meta.width || canvas.height !== meta.height) {
-        canvas.width = meta.width;
-        canvas.height = meta.height;
-    }
-
-    const ctx = canvas.getContext("2d");
-    
-    const imgData = ctx.createImageData(meta.width, meta.height);
-    const pixels = imgData.data; // The flat array [R,G,B,A, R,G,B,A...]
-
-    const totalPixels = meta.width * meta.height;
-    const bytesPerFrame = Math.ceil(totalPixels / 8);
-    const startByte = index * bytesPerFrame;
-
-    for (let i = 0; i < totalPixels; i++) {
-        const byteIndex = startByte + (i >> 3); // i / 8
-        const bitPos = 7 - (i % 8); // MSB first (7 down to 0)
-
-        const byteVal = (byteIndex < rawData.length) ? rawData[byteIndex] : 0;
-        const isInk = (byteVal >> bitPos) & 1;
-
-        // Map to RGBA
-        const pIndex = i * 4;
-        
-        if (isInk === 1) {
-            // BLACK (Ink)
-            pixels[pIndex] = 0;     // R
-            pixels[pIndex + 1] = 0; // G
-            pixels[pIndex + 2] = 0; // B
-            pixels[pIndex + 3] = 255; // Alpha
-        } else {
-            pixels[pIndex] = 255;
-            pixels[pIndex + 1] = 255;
-            pixels[pIndex + 2] = 255;
-            pixels[pIndex + 3] = 255;
-        }
-    }
-
-    ctx.putImageData(imgData, 0, 0);
-}
     function fetchCaptchaImg() {
             const apiUrl = document.getElementById('api_url').value;
             const captchaDisplay = document.getElementById('captcha_display');
@@ -293,6 +252,8 @@ function display_to_canvas(index) {
         function submitCaptcha() {
             const apiUrl = document.getElementById('api_url').value;
             const answer = document.getElementById('answer_input').value;
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = "Submitting captcha, please wait...";
             fetch(`${apiUrl}/verify`, {
                 method: 'POST',
                 headers: {
@@ -306,8 +267,10 @@ function display_to_canvas(index) {
             })
             .then(response => response.json())
             .then(data => {
-                const resultDiv = document.getElementById('result');
+                
                 resultDiv.textContent = `Answer is  ${data.answer == true ? "correct" : "incorrect"}, Index is ${data.index == true ? "correct" : "incorrect"}. ${data.error ? ("AN ERROR OCCURED! " + data.error) : ""}`;
+            }).catch(error => {
+                resultDiv.textContent = "Network/https error submitting captcha: " + error;
             });
         }
     </script>
