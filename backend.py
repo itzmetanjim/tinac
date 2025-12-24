@@ -87,12 +87,14 @@ with open("config.json","r") as f:
         markov_chain=AsciiMarkovChain.load_from_json("model.json")
         def generate_decoy(linelen,lineheight,realtext):
             global markov_chain
-            decoy=markov_chain.generate(linelen*lineheight)
+
+            decoy_base=markov_chain.generate(linelen*(lineheight-1)+1)
+            decoy=decoy_base[:-1]
             #split into lineheight lines of length linelen
             lines=[]
-            for i in range(lineheight):
+            for i in range(lineheight-1):
                 lines.append(decoy[i*linelen:(i+1)*linelen])
-            return "\n".join(lines)
+            return "\n".join(lines) + decoy_base[-1]
     elif deceptor=="random":
         def generate_decoy(linelen,lineheight,realtext):
             decoy=""
