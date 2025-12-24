@@ -19,7 +19,7 @@ origins = [
 ]
 
 class CaptchaCompressor:
-    def __init__(self, font_path="Inconsolata.ttf", font_size=20):
+    def __init__(self, font_path="font.ttf", font_size=20):
         try:
             self.font = ImageFont.truetype(font_path, font_size)
         except:
