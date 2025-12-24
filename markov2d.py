@@ -40,9 +40,9 @@ def generate_decoy(linelen, lineheight, realtext):
         realtext (str): Ignored for generation content (as requested), 
                         but could be used for logging/metrics if needed.
     """
-    grid = [[" " for _ in range(linelen)] for _ in range(lineheight)]
+    grid = [[" " for _ in range(linelen)] for _ in range(lineheight-1)]
     
-    for r in range(lineheight):
+    for r in range(lineheight-1): #TODO find out why i need to put -1 
         for c in range(linelen):
             left   = grid[r][c-1] if c > 0 else " "
             up     = grid[r-1][c] if r > 0 else " "
