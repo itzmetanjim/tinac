@@ -83,6 +83,7 @@ with open("config.json","r") as f:
     good_fonts=config["good_fonts"]
     chars=config["chars"] #Confusing chars may make the captcha hard so those are removed
     charlens=config["charlens"]
+    steps=config.get("steps",50)
     deceptor=config.get("deceptor","markov")
     if deceptor=="markov":
         markov_chain=AsciiMarkovChain.load_from_json("model.json")
@@ -135,8 +136,9 @@ Endpoints:
 GET /challenge  : Get a random challenge.
     Request body: none needed
     Example response:
-        {"id":"unique-id-urlsafe-base64"
-        "challenge":["random_challenge_texts"]}
+        {"id":"unique-id-urlsafe-base64",
+        "challenge":["random_challenge1","2", ... ,"50"],
+        "steps":50}
 POST /verify    : Verify an answer (case sensitive).
     Example request body: {"id":"unique-id-urlsafe-base64","answer":"abcd"} or {"id":"unique-id-urlsafe-base64","answer":"abcd", "index": 2}
     Example response: {"answer": true} 
@@ -151,14 +153,14 @@ def get_challenge():
     cid=secrets.token_urlsafe(32)
     challenge="".join(secrets.choice(chars) for _ in range(secrets.choice(charlens)))
     fonts=[secrets.choice(good_fonts) for _ in range(len(challenge))]
-    if len(challenges)>1000:
+    if len(challenges)>100000000: # approx 4GB ram usage limit
         challenges.popitem(last=False)
     ctext = asciiart(list(zip(challenge, fonts)))
-    correct_index=secrets.randbelow(51)
+    correct_index=secrets.randbelow(steps+1)
     challenges[cid]=[challenge,correct_index]
     #generate decoys
     challenges_list=[]
-    for i in range(50):
+    for i in range(steps):
         if i==correct_index:
             challenges_list.append(ctext)
         else:
@@ -182,6 +184,20 @@ def get_challenge():
     
     return {"id":cid,"challenge":challenges_list}
 
+@app.post("/verify")
+def verify_answer(payload: dict):
+    cid=payload.get("id",None)
+    answer=payload.get("answer",None)
+    index=payload.get("index",None)
+    if cid not in challenges:
+        return {"error":"Invalid or expired ID"}
+    if answer is None:
+        return {"error":"answer parameter required"}
+    correct_answer,correct_index=challenges.pop(cid)
+    response={"answer": answer==correct_answer}
+    if index is not None:
+        response["index"]= index==correct_index
+    return response
 
 
     

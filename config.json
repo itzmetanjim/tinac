@@ -1,10 +1,12 @@
 {
     "good_fonts": ["standard"],
     "chars": "ABCEFGHJKMNPRSTLabcdefghijkmnopqrstuvwxyz",
-    "deceptor": "markov",
-    "charlens":[5,6,7],
 
+    "deceptor": "markov",
     "__comment__":"Use 'markov','random' or a custom deceptor module name (must have the function generate_decoy(linelen,lineheight,realtext) defined).",
+
+    "charlens":[5,6,7],
+    "steps":50,
 
     "training_settings":{
         "memory":5,
