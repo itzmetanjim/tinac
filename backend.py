@@ -154,7 +154,7 @@ def get_challenge():
         else:
             linelen = max(len(line) for line in ctext.split("\n"))
             lineheight = len(ctext.split("\n"))
-            decoy_text=generate_decoy(linelen,lineheight,challenge).replace("\n","")
+            decoy_text=generate_decoy(linelen,lineheight,challenge)
             challenges_list.append(decoy_text)
     
     return {"id":cid,"challenge":challenges_list}
