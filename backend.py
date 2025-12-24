@@ -152,7 +152,9 @@ def get_challenge():
         if i==correct_index:
             challenges_list.append(ctext)
         else:
-            decoy_text=generate_decoy(len(challenge),1,challenge).replace("\n","")
+            linelen = max(len(line) for line in ctext.split("\n"))
+            lineheight = len(ctext.split("\n"))
+            decoy_text=generate_decoy(linelen,lineheight,challenge).replace("\n","")
             challenges_list.append(decoy_text)
     
     return {"id":cid,"challenge":challenges_list}
@@ -162,4 +164,4 @@ def get_challenge():
     
 
 if __name__ == "__main__":
-    uvicorn.run("backend:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend:app", host="0.0.0.0", port=3456, reload=True)
