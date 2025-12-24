@@ -162,9 +162,22 @@ def get_challenge():
         if i==correct_index:
             challenges_list.append(ctext)
         else:
+            emptylinesbefore=0
+            emptylinesafter=0
+            for line in ctext.split("\n"):
+                if line.strip()=="":
+                    emptylinesbefore+=1
+                else:
+                    break
+            for line in reversed(ctext.split("\n")):
+                if line.strip()=="":
+                    emptylinesafter+=1
+                else:
+                    break
             linelen = max(len(line) for line in ctext.split("\n"))
-            lineheight = len(ctext.split("\n"))
-            decoy_text=generate_decoy(linelen,lineheight,challenge)
+            lineheight = len(ctext.split("\n")) - emptylinesbefore - emptylinesafter
+            
+            decoy_text=(" "*linelen + "\n")* emptylinesbefore + generate_decoy(linelen,lineheight,challenge) + ("\n" + " "*linelen)* emptylinesafter
             challenges_list.append(decoy_text)
     
     return {"id":cid,"challenge":challenges_list}
