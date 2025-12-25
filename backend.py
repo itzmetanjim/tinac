@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 import uvicorn
 import secrets
-import random
+
 from fastapi.middleware.cors import CORSMiddleware
 origins = [
     "http://localhost",
@@ -91,7 +91,7 @@ class AsciiMarkovChain:
         # produce exactly `length` characters in the returned string
         if length <= 0:
             return ""
-        start_key = random.choice(list(self.model.keys()))
+        start_key = secrets.choice(list(self.model.keys()))
         output = start_key
         current_state = start_key
 
@@ -99,11 +99,11 @@ class AsciiMarkovChain:
         while len(output) < length:
             possible_next_chars = self.model.get(current_state)
             if not possible_next_chars:
-                current_state = random.choice(list(self.model.keys()))
+                current_state = secrets.choice(list(self.model.keys()))
                 # reset current_state to a valid key but keep trying to reach desired length
                 continue
 
-            next_char = random.choice(possible_next_chars)
+            next_char = secrets.choice(possible_next_chars)
             output += next_char
             current_state = output[-self.order:]
 
