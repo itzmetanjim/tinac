@@ -50,13 +50,19 @@
     <h1>TINAC Captcha example</h1>
     <p>API URL:</p>
     <input type="text" id="api_url" value="http://tanjim.duckdns.org:3456"><button onclick="fetchCaptchaImg()">Fetch Captcha</button>
-    <br><button onclick="fetchCaptcha()">Fetch Legacy Text Captcha</button>
+    <br><button onclick="fetchCaptcha()">Fetch Legacy Text Captcha</button> <button onclick="fetchAudioCaptcha()">Fetch Audio Captcha</button>
     <p>Note: It may take some time to fetch. Wait until you see the captcha below.</p>
     <canvas id="captcha_canvas" style="display:none; border:1px solid #555;"></canvas>
     <div id="captcha_container">
-        <pre id="captcha_display">Click "Fetch Captcha" to start</pre>
-        <p>Slowly drag the slider until you see legible text. Then enter the text you see in the input box below.</p>
-        <input type="range" id="captcha_slider" min="0" max="49" value="0" oninput="updateSliderValue()"> <span id="selected_index">0</span>
+        <pre id="captcha_display">Click "Fetch Captcha" or "Fetch Audio Captcha" to start.</pre>
+        <p id="instruct">Slowly drag the slider until you see legible text. Then enter the text you see in the input box below.</p>
+        <div id="audio" style="display:none;">
+            <audio id="captcha_audio" controls>
+                Your browser does not support the audio element.
+            </audio>
+            <button onclick="previousTrack()">Previous</button>&nbsp;<button onclick="nextTrack()">Next</button> 
+        </div>
+        <input type="range" id="captcha_slider" min="0" max="1" value="0" oninput="updateSliderValue()"> <span id="selected_index">0</span>
         <br><input type="text" id="answer_input" placeholder="Enter captcha text here"><button onclick="submitCaptcha()">Submit Captcha</button>
     </div>
     
@@ -239,6 +245,57 @@ async function initCaptchaData() {
             const captchaDisplay = document.getElementById('captcha_display');
             captchaDisplay.textContent = window.captchaChallenges[index];
         }
+
+        function playCaptchaAudio(audioData) {
+            const binaryString = window.atob(audioData);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+            const audioElem = document.getElementById('captcha_audio');
+            audioElem.src = url;
+            audioElem.play();
+        }
+        function updateAudioCaptchaDisplay(index) {
+            playCaptchaAudio(window.challenges[index]);
+        }
+        function nextTrack(){
+            window.currentAudioIndex = (window.currentAudioIndex + 1) % window.audioSteps;
+            document.getElementById('captcha_slider').value = window.currentAudioIndex;
+            updateAudioCaptchaDisplay(window.currentAudioIndex);
+        }
+        function previousTrack(){
+            window.currentAudioIndex = (window.currentAudioIndex - 1 + window.audioSteps) % window.audioSteps;
+            document.getElementById('captcha_slider').value = window.currentAudioIndex;
+            updateAudioCaptchaDisplay(window.currentAudioIndex);
+        }
+        function fetchAudioCaptcha(){
+            const apiUrl = document.getElementById('api_url').value;
+            const captchaDisplay = document.getElementById('captcha_display');
+            captchaDisplay.textContent = "Fetching audio captcha, please wait...";
+            fetch(`${apiUrl}/challenge_audio`)
+                .then(response => response.json())
+                .then(data =>{
+                    captchaDisplay.textContent=""; 
+                    document.getElementById('instruct').textContent="Click 'Next' or drag the slider until you hear numbers. Enter the numbers (not words) you hear in the input box below.";
+                    window.captchaId = data.id
+                    window.challenges = data.challenge;
+                    document.getElementById('captcha_slider').max = data.steps - 1;
+                    window.audioSteps = data.steps;
+
+                })
+        }
+
+
+
+
+
+
+
+
+
         function updateSliderValue() {
             const slider = document.getElementById('captcha_slider');
             const selectedIndex = document.getElementById('selected_index');
@@ -249,6 +306,10 @@ async function initCaptchaData() {
                 display_to_canvas(parseInt(slider.value));// Image captcha
             }
         }
+
+
+
+
         function submitCaptcha() {
             const apiUrl = document.getElementById('api_url').value;
             const answer = document.getElementById('answer_input').value;
@@ -268,7 +329,25 @@ async function initCaptchaData() {
             .then(response => response.json())
             .then(data => {
                 
-                resultDiv.textContent = `Answer is  ${data.answer == true ? "correct" : "incorrect"}, Index is ${data.index == true ? "correct" : "incorrect"}. ${data.error ? ("AN ERROR OCCURED! " + data.error) : ""}`;
+                resultDiv.innerText = `Answer is  ${data.answer == true ? "correct" : "incorrect"}, Index is ${data.index == true ? "correct" : "incorrect"}. JWT token: ${data.token ? data.token : "No token received."} ${data.error ? ("AN ERROR OCCURED! " + data.error) : ""}\n Verifying JWT token...`;
+                if(data.token){
+                    fetch(`${apiUrl}/verify_token`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            token: data.token
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(tokenData => {
+                        resultDiv.innerText += `\nToken verification result: ${tokenData.valid ? "Valid" : "Invalid"}. Payload: ${tokenData.data?JSON.stringify(tokenData.data):"None"}, Error: ${tokenData.error ? tokenData.error : "None"}`;
+                    })
+                    .catch(error => {
+                        resultDiv.textContent += "\nNetwork/https error verifying token: " + error;
+                    });
+                }
             }).catch(error => {
                 resultDiv.textContent = "Network/https error submitting captcha: " + error;
             });
