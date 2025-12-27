@@ -1,5 +1,7 @@
 # TINAC
 TINAC: **T**inac **I**s **N**ot **A** **C**aptcha
+<video controls src="2025-12-27 20-19-41.mp4" title="video example"></video>
+
 ## How to deploy
 
 ### Part 1: Hosting the TINAC Server
