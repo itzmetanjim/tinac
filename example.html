@@ -48,6 +48,7 @@
 </head>
 <body>
     <h1>TINAC Captcha example</h1>
+    <!-- In a production environment the API URL should not be taken like this in an input-->
     <p>API URL:</p>
     <input type="text" id="api_url" value="http://tanjim.duckdns.org:3456"><button onclick="fetchCaptchaImg()">Fetch Captcha</button>
     <br><button onclick="fetchCaptcha()">Fetch Legacy Text Captcha</button> <button onclick="fetchAudioCaptcha()">Fetch Audio Captcha</button>
@@ -283,6 +284,7 @@ async function initCaptchaData() {
                     window.captchaId = data.id
                     window.challenges = data.challenge;
                     document.getElementById('captcha_slider').max = data.steps - 1;
+                    document.getElementById('audio').style.display="block";
                     window.audioSteps = data.steps;
 
                 })
@@ -300,6 +302,10 @@ async function initCaptchaData() {
             const slider = document.getElementById('captcha_slider');
             const selectedIndex = document.getElementById('selected_index');
             selectedIndex.textContent = slider.value;
+            if(window.audioSteps){
+                updateAudioCaptchaDisplay(parseInt(slider.value));// Audio captcha
+                return;
+            }
             if(window.captchaRawBits==null){
                 updateCaptchaDisplay(slider.value);// Text captcha
             }else{
