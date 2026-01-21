@@ -70,10 +70,7 @@
     <div id="result"></div>
     <script>
         function hexToRgb(hex) {
-    // Remove '#' if present
     hex = hex.replace(/^#/, '');
-    
-    // Parse the values
     const bigint = parseInt(hex, 16);
     const r = (bigint >> 16) & 255;
     const g = (bigint >> 8) & 255;
@@ -97,7 +94,6 @@
                     captchaDisplay.textContent = "Error fetching captcha: " + error;
                 });
         }
-        // GLOBAL STORAGE for the decompressed raw bits
 window.captchaRawBits = null; 
 
 async function initCaptchaData() {
@@ -107,27 +103,22 @@ async function initCaptchaData() {
     }
 
     try {
-        // 1. Convert Base64 string to Uint8Array
         const binaryString = atob(window.challenges.data);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // 2. Decompress using native browser API
-        // 'deflate' format handles the zlib headers Python generates
         const stream = new Blob([bytes]).stream().pipeThrough(
             new DecompressionStream("deflate")
         );
         
-        // 3. Load result into memory buffer
         const response = new Response(stream);
         const buffer = await response.arrayBuffer();
         window.captchaRawBits = new Uint8Array(buffer);
         
         console.log(`Captcha loaded: ${window.captchaRawBits.length} bytes unpacked.`);
         
-        // Optional: Draw the first frame immediately
         display_to_canvas(0);
 
     } catch (err) {
@@ -191,7 +182,6 @@ function display_to_canvas(index, fgHex = "#d4d4d4", bgHex = "transparent" /*bgH
     ctx.putImageData(imgData, 0, 0);
 }
 window.canvasElem=document.getElementById("captcha_canvas");
-// GLOBAL STORAGE for the decompressed raw bits
 window.captchaRawBits = null; 
 
 async function initCaptchaData() {
@@ -260,16 +250,22 @@ async function initCaptchaData() {
             audioElem.play();
         }
         function updateAudioCaptchaDisplay(index) {
-            playCaptchaAudio(window.challenges[index]);
+            if (window.audioChallenges && window.audioChallenges[index]) {
+                playCaptchaAudio(window.audioChallenges[index]);
+            } else {
+                console.error("No audio data at index:", index);
+            }
         }
         function nextTrack(){
             window.currentAudioIndex = (window.currentAudioIndex + 1) % window.audioSteps;
             document.getElementById('captcha_slider').value = window.currentAudioIndex;
+            document.getElementById('selected_index').textContent = window.currentAudioIndex;
             updateAudioCaptchaDisplay(window.currentAudioIndex);
         }
         function previousTrack(){
             window.currentAudioIndex = (window.currentAudioIndex - 1 + window.audioSteps) % window.audioSteps;
             document.getElementById('captcha_slider').value = window.currentAudioIndex;
+            document.getElementById('selected_index').textContent = window.currentAudioIndex;
             updateAudioCaptchaDisplay(window.currentAudioIndex);
         }
         function fetchAudioCaptcha(){
@@ -281,12 +277,15 @@ async function initCaptchaData() {
                 .then(data =>{
                     captchaDisplay.textContent=""; 
                     document.getElementById('instruct').textContent="Click 'Next' or drag the slider until you hear numbers. Enter the numbers (not words) you hear in the input box below.";
-                    window.captchaId = data.id
-                    window.challenges = data.challenge;
+                    window.captchaId = data.id;
+                    window.audioChallenges = data.challenge;
+                    window.challenges = data.challenge; // Keep for compatibility
                     document.getElementById('captcha_slider').max = data.steps - 1;
                     document.getElementById('audio').style.display="block";
                     window.audioSteps = data.steps;
-
+                    window.currentAudioIndex = 0;
+                    document.getElementById('captcha_slider').value = 0;
+                    updateAudioCaptchaDisplay(0); // Play first audio
                 })
         }
 
@@ -303,7 +302,8 @@ async function initCaptchaData() {
             const selectedIndex = document.getElementById('selected_index');
             selectedIndex.textContent = slider.value;
             if(window.audioSteps){
-                updateAudioCaptchaDisplay(parseInt(slider.value));// Audio captcha
+                window.currentAudioIndex = parseInt(slider.value);
+                updateAudioCaptchaDisplay(window.currentAudioIndex);// Audio captcha
                 return;
             }
             if(window.captchaRawBits==null){
