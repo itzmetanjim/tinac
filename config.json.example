@@ -6,6 +6,20 @@
     "charlens":[5,6,7],
     "steps":20,
 
+    "img_distortions":{
+        "enabled":true,
+        "__comment":"Post-render XOR distortions on each image captcha frame. rect/circle: float 0-1 = fraction of image height, int >= 1 = absolute pixels. Defaults: rect_min_side=h/8, circle_min_radius=h/8. point: float = fraction of total pixels (density), int = exact count. point_size = side length of square points in pixels. line_width = stroke width in pixels.",
+        "rect_count":2,
+        "rect_min_side":0.125,
+        "circle_count":1,
+        "circle_min_radius":0.125,
+        "line_count":4,
+        "line_width":2,
+        "point_density":0.03,
+        "point_count":null,
+        "point_size":2
+    },
+
     "audio_engine":"audiogen",
     "gap":"50%",
     "audio_steps":20,

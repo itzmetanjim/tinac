@@ -5,7 +5,9 @@ import zlib
 import base64
 import json
 import sys
-from PIL import Image, ImageDraw, ImageFont
+import random
+import math
+from PIL import Image, ImageDraw, ImageFont, ImageChops
 import pyfiglet
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
@@ -28,12 +30,89 @@ color_err="\x1b[1;91;49m"
 color_acc="\x1b[1;92;49m"
 color_reset="\x1b[0m"
 class CaptchaCompressor:
-    def __init__(self, font_path="font.ttf", font_size=20):
+    def __init__(self, font_path="font.ttf", font_size=20, distortions=None):
         try:
             self.font = ImageFont.truetype(font_path, font_size)
         except:
             print("Warning: Font not found, loading default.")
             self.font = ImageFont.load_default()
+        self.distortions = distortions or {}
+
+    def _apply_distortions(self, img):
+        w, h = img.size
+        d = self.distortions
+        if not d.get("enabled", False):
+            return img
+
+        img_l = img.convert('L')
+        mask = Image.new('L', (w, h), 0)
+
+        def xor_into(main, patch):
+            return ImageChops.difference(main, patch)
+
+        temp = Image.new('L', (w, h), 0)
+        td = ImageDraw.Draw(temp)
+        rect_min_raw = d.get("rect_min_side")
+        if rect_min_raw is None:
+            rect_min = h // 8
+        elif rect_min_raw < 1:
+            rect_min = max(int(h * rect_min_raw), 1)
+        else:
+            rect_min = int(rect_min_raw)
+        for _ in range(d.get("rect_count", 2)):
+            rw = random.randint(max(rect_min, 1), max(w // 3, 2))
+            rh = random.randint(max(rect_min, 1), max(h // 3, 2))
+            rx = random.randint(0, max(0, w - rw))
+            ry = random.randint(0, max(0, h - rh))
+            td.rectangle([rx, ry, rx + rw, ry + rh], fill=255)
+        mask = xor_into(mask, temp)
+
+        temp = Image.new('L', (w, h), 0)
+        td = ImageDraw.Draw(temp)
+        circ_min_raw = d.get("circle_min_radius")
+        if circ_min_raw is None:
+            circ_min = h // 8
+        elif circ_min_raw < 1:
+            circ_min = max(int(h * circ_min_raw), 1)
+        else:
+            circ_min = int(circ_min_raw)
+        for _ in range(d.get("circle_count", 1)):
+            max_r = min(w, h)
+            cr = random.randint(max(circ_min, 1), max(max_r // 3, 2))
+            cx = random.randint(cr, max(cr, w - cr))
+            cy = random.randint(cr, max(cr, h - cr))
+            td.ellipse([cx - cr, cy - cr, cx + cr, cy + cr], fill=255)
+        mask = xor_into(mask, temp)
+
+        temp = Image.new('L', (w, h), 0)
+        td = ImageDraw.Draw(temp)
+        line_width = d.get("line_width", 2)
+        for _ in range(d.get("line_count", 4)):
+            x1, y1 = random.randint(0, w - 1), random.randint(0, h - 1)
+            x2, y2 = random.randint(0, w - 1), random.randint(0, h - 1)
+            td.line([(x1, y1), (x2, y2)], fill=255, width=line_width)
+        mask = xor_into(mask, temp)
+
+        point_count = d.get("point_count", None)
+        if point_count is None:
+            density = d.get("point_density", 0.03)
+            point_count = int(w * h * density)
+        point_size = d.get("point_size", 2)
+        if point_count > 0:
+            temp = Image.new('L', (w, h), 0)
+            td = ImageDraw.Draw(temp)
+            grid_side = max(1, int(math.sqrt(point_count)))
+            cell_w = w / grid_side
+            cell_h = h / grid_side
+            for gy in range(grid_side):
+                for gx in range(grid_side):
+                    px = min(int(gx * cell_w + random.random() * cell_w), w - point_size)
+                    py = min(int(gy * cell_h + random.random() * cell_h), h - point_size)
+                    td.rectangle([px, py, px + point_size - 1, py + point_size - 1], fill=255)
+            mask = xor_into(mask, temp)
+
+        inverted = Image.eval(img_l, lambda p: 255 - p)
+        return Image.composite(inverted, img_l, mask).convert('1')
 
     def encode_bundle(self, text_frames):
         """
@@ -57,6 +136,7 @@ class CaptchaCompressor:
             img = Image.new('1', (width, height), color=1) # 1 is white
             draw = ImageDraw.Draw(img)
             draw.text((5, 5), text, font=self.font, fill=0) # 0 is black
+            img = self._apply_distortions(img)
             pixels = list(img.getdata())
             frame_bytes = bytearray()
             current_byte = 0
@@ -199,6 +279,8 @@ try:
         if jwt_secret == None:
             print(f"{color_err}Error: jwt_secret not set in config.json. Please set it to a secure random string.{color_reset}")
             exit(1)
+        img_distortions=config.get("img_distortions",{})
+        imager=CaptchaCompressor(distortions=img_distortions)
 except FileNotFoundError:
     print(f"{color_err}Error: config.json not found.{color_reset}")
     print(f"{color_warn}Try copying config.json.example to config.json and editing it as needed.{color_reset}")

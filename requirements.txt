@@ -1,4 +1,5 @@
 fastapi
+audioop-lts
 uvicorn
 pyfiglet
 pillow
