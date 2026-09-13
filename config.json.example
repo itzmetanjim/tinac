@@ -31,6 +31,8 @@
     "jwt_secret":"CHANGE_THIS_CHANGE_THIS_CHANGE_THIS_CHANGE_THIS",
     "onetime": true,
     "__comment___onetime": "If true, /verify_token will return valid:false for a given token after the first time it's successfully checked (replay protection).",
+    "case_insensitive": true,
+    "__comment___case_insensitive": "If true (default), /verify compares the submitted answer to the correct answer case-insensitively. Set to false to require exact case to match (note: 'chars' includes both cases of many letters, e.g. C/c, S/s, P/p - case-insensitive mode means those no longer need to be told apart).",
     "allowed_types":["legacy","image","audio"],
     "training_settings":{
         "memory":5,

@@ -292,6 +292,7 @@ try:
             print(f"{color_err}Error: jwt_secret not set in config.json. Please set it to a secure random string.{color_reset}")
             exit(1)
         onetime=config.get("onetime",False)
+        case_insensitive=config.get("case_insensitive",True)
         img_distortions=config.get("img_distortions",{})
         imager=CaptchaCompressor(distortions=img_distortions)
 except FileNotFoundError:
@@ -343,7 +344,7 @@ GET /challenge_audio: Get an audio challenge.The audio is a base64 encoded mp3 f
         "challenge":["base64-encoded-mp3-audio-data1","2", ... ,"50"],
         "steps":50}
     Use the same /verify endpoint to verify the answer.
-POST /verify    : Verify an answer (case sensitive).
+POST /verify    : Verify an answer (case sensitivity depends on the case_insensitive config option; insensitive by default).
     Example request body: {"id":"unique-id-urlsafe-base64","answer":"abcd"} or {"id":"unique-id-urlsafe-base64","answer":"abcd", "index": 2}
     Example response: {"answer": true} 
                 or: {"answer": true, "index": true}
@@ -481,12 +482,16 @@ def verify_answer(payload: dict):
         return {"error":"Invalid or expired ID"}
     
     correct_answer,correct_index=challenges.pop(cid)
-    response={"answer": answer==correct_answer}
+    if case_insensitive and isinstance(answer,str):
+        answer_correct = answer.lower()==correct_answer.lower()
+    else:
+        answer_correct = answer==correct_answer
+    response={"answer": answer_correct}
     if index is not None:
         response["index"]= index==correct_index
     jwt_payload={
         "cid": cid,
-        "answer": answer==correct_answer,
+        "answer": answer_correct,
         "index": index==correct_index if index is not None else False,
         "type": ctype,
         "iat": int(time.time()),
