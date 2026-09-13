@@ -15,7 +15,7 @@
         "circle_min_radius":0.125,
         "line_count":4,
         "line_width":2,
-        "point_density":0.003,
+        "point_density":0.0005,
         "point_count":null,
         "point_size":2
     },
