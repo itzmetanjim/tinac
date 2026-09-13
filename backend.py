@@ -216,9 +216,21 @@ class AsciiMarkovChain:
         return instance
     
 
+def _group_by_font(text_font_pairs):
+    """Merge adjacent chars that share the same font into one run, so
+    pyfiglet can kern/smush within the run instead of each char being
+    rendered in isolation."""
+    groups = []
+    for ch, font in text_font_pairs:
+        if groups and groups[-1][1] == font:
+            groups[-1] = (groups[-1][0] + ch, font)
+        else:
+            groups.append((ch, font))
+    return groups
+
 def asciiart(text_font_pairs):
     all_blocks = []
-    for text, font in text_font_pairs:
+    for text, font in _group_by_font(text_font_pairs):
         art = pyfiglet.figlet_format(text, font=font)
         all_blocks.append(art.splitlines())
     max_height = max(len(block) for block in all_blocks)
@@ -279,6 +291,7 @@ try:
         if jwt_secret == None:
             print(f"{color_err}Error: jwt_secret not set in config.json. Please set it to a secure random string.{color_reset}")
             exit(1)
+        onetime=config.get("onetime",False)
         img_distortions=config.get("img_distortions",{})
         imager=CaptchaCompressor(distortions=img_distortions)
 except FileNotFoundError:
@@ -301,6 +314,7 @@ if ((shutil.which("ffmpeg") is None) and (shutil.which("avconv") is None)) and (
 if jwt_secret=="CHANGE_THIS_CHANGE_THIS_CHANGE_THIS_CHANGE_THIS":
             print(f"{color_err}Warning: jwt_secret is set to the default value. THIS IS ONLY RECOMMENDED FOR TESTING. Change this to a different value.{color_reset}")
 challenges={}
+used_tokens={} # cid -> exp, for "onetime" token replay protection
 @app.get("/",response_class=PlainTextResponse)
 def read_root():
     """
@@ -489,11 +503,25 @@ def verify_token(payload: dict):
         return {"error":"token parameter required"}
     try:
         decoded = jwt.decode(token, jwt_secret, algorithms=["HS256"])
-        return {"valid": True, "data": decoded}
     except jwt.ExpiredSignatureError:
         return {"valid": False, "error": "Token has expired"}
     except jwt.InvalidTokenError:
         return {"valid": False, "error": "Invalid token"}
+
+    if onetime:
+        cid = decoded.get("cid")
+        now = int(time.time())
+        # Anything past its own exp would be rejected by jwt.decode above
+        # regardless of used_tokens, so it's always safe to forget here too -
+        # this keeps the dict bounded to tokens issued within one expiry
+        # window instead of growing forever.
+        for stale_cid in [k for k, exp in used_tokens.items() if exp <= now]:
+            del used_tokens[stale_cid]
+        if cid in used_tokens:
+            return {"valid": False, "error": "Token has already been verified once"}
+        used_tokens[cid] = decoded.get("exp", now)
+
+    return {"valid": True, "data": decoded}
     
 
 if __name__ == "__main__":

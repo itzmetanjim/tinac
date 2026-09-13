@@ -15,15 +15,22 @@
         "circle_min_radius":0.125,
         "line_count":4,
         "line_width":2,
-        "point_density":0.03,
+        "point_density":0.003,
         "point_count":null,
         "point_size":2
+    },
+
+    "markov2d_settings": {
+        "__comment__": "Settings for the markov2d deceptor. max_run: maximum allowed run of consecutive blank characters per generated row before a non-space char is forced, so decoys don't have long empty clumps that real ASCII-art rows never have (real rows run about 2-6).",
+        "max_run": 5
     },
 
     "audio_engine":"audiogen",
     "gap":"50%",
     "audio_steps":20,
     "jwt_secret":"CHANGE_THIS_CHANGE_THIS_CHANGE_THIS_CHANGE_THIS",
+    "onetime": true,
+    "__comment___onetime": "If true, /verify_token will return valid:false for a given token after the first time it's successfully checked (replay protection).",
     "allowed_types":["legacy","image","audio"],
     "training_settings":{
         "memory":5,

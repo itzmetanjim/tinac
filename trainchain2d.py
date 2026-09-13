@@ -10,9 +10,21 @@ def load_config(path="config.json"):
 
 CONFIG = load_config()
 
-def asciiart(text_font_pairs): 
+def _group_by_font(text_font_pairs):
+    """Merge adjacent chars that share the same font into one run, so
+    pyfiglet can kern/smush within the run instead of each char being
+    rendered in isolation."""
+    groups = []
+    for ch, font in text_font_pairs:
+        if groups and groups[-1][1] == font:
+            groups[-1] = (groups[-1][0] + ch, font)
+        else:
+            groups.append((ch, font))
+    return groups
+
+def asciiart(text_font_pairs):
     all_blocks = []
-    for text, font in text_font_pairs:
+    for text, font in _group_by_font(text_font_pairs):
         try:
             art = pyfiglet.figlet_format(text, font=font)
         except:
